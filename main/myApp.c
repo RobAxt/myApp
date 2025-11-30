@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "myComponent.h"
 #include "unity.h"
 
@@ -15,4 +16,6 @@ void app_main(void)
     UNITY_END();
 
     //unity_run_menu();
+
+    exit(0); // Esto termina el proceso en QEMU
 }

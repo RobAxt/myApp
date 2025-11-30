@@ -51,7 +51,7 @@ jobs:
           set -e
           . "$IDF_PATH/export.sh"
           cd build
-          esptool.py --chip esp32 merge_bin --fill-flash-size 4MB -o flash_image.bin @flash_args || { echo "Error generando imagen de flash"; exit 1; }
+          esptool --chip esp32 merge_bin --fill-flash-size 4MB -o flash_image.bin @flash_args || { echo "Error generando imagen de flash"; exit 1; }
           timeout ${IDF_TIMEOUT}s qemu-system-xtensa \
             -nographic \
             -no-reboot \
