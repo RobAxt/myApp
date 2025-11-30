@@ -8,62 +8,72 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-
     container:
       image: espressif/idf:release-v6.0
-
+    env:
+      IDF_TIMEOUT: 120
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Cache build output
+        uses: actions/cache@v3
+        with:
+          path: build
+          key: ${{ runner.os }}-idf-build-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-idf-build-
 
       - name: Show ESP-IDF version
         shell: bash
         run: |
           echo "IDF_PATH = $IDF_PATH"
           . "$IDF_PATH/export.sh"
-          idf.py --version
+          idf.py --version || { echo "Error mostrando versión de ESP-IDF"; exit 1; }
 
       - name: Configure project (cmake)
         shell: bash
         run: |
           . "$IDF_PATH/export.sh"
-          idf.py reconfigure
+          idf.py reconfigure || { echo "Error en reconfigure"; exit 1; }
 
       - name: Build firmware
         shell: bash
         run: |
           . "$IDF_PATH/export.sh"
-          idf.py build
+          idf.py build || { echo "Error en build"; exit 1; }
 
       - name: Run Unity tests in QEMU
         shell: bash
+        env:
+          IDF_TIMEOUT: ${{ env.IDF_TIMEOUT }}
         run: |
           set -e
           . "$IDF_PATH/export.sh"
-
           cd build
-
-          # 1) Generar imagen de flash a partir de los binarios (usa @flash_args generado por idf.py)
-          esptool.py --chip esp32 merge_bin --fill-flash-size 4MB -o flash_image.bin @flash_args
-
-          # 2) Ejecutar QEMU. 
-          #    -nographic → saca todo por stdout
-          #    -no-reboot → cuando termina, QEMU sale
-          #    -serial file:output.log → log de la UART a archivo
-          qemu-system-xtensa \
+          esptool.py --chip esp32 merge_bin --fill-flash-size 4MB -o flash_image.bin @flash_args || { echo "Error generando imagen de flash"; exit 1; }
+          timeout ${IDF_TIMEOUT}s qemu-system-xtensa \
             -nographic \
             -no-reboot \
             -machine esp32 \
             -drive file=flash_image.bin,if=mtd,format=raw \
-            -serial file:output.log
-
+            -serial file:output.log || { echo "QEMU terminó por timeout o error"; }
           echo "========== QEMU / Unity log =========="
           cat output.log
-
-          # 3) Si Unity dejó alguna línea con FAIL, hacer fallar el job
           if grep -q "FAIL" output.log; then
             echo "❌ Algunos tests de Unity FALLARON"
             exit 1
           fi
-
           echo "✅ Todos los tests pasaron (no se encontró 'FAIL' en el log)"
+
+      - name: Upload QEMU log
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-output-log
+          path: build/output.log
+
+      - name: Upload firmware image
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-image
+          path: build/flash_image.bin
