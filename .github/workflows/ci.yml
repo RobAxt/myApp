@@ -1,0 +1,51 @@
+name: ESP-IDF CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    container:
+      image: espressif/idf:release-v6.1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show ESP-IDF version
+        run: |
+          echo "IDF_PATH = $IDF_PATH"
+          idf.py --version || true
+
+      - name: Configure project (cmake)
+        run: |
+          idf.py reconfigure
+
+      - name: Build firmware
+        run: |
+          idf.py build
+
+      - name: Run Unity tests in QEMU
+        run: |
+          # Lanzar QEMU + monitor en modo no interactivo.
+          # Usamos 'timeout' para que no quede colgado.
+          set -e
+
+          # Generar imagen de QEMU y lanzarlo como hace el comando idf.py qemu
+          idf.py qemu --no-monitor &
+
+          # Darle unos segundos para bootear
+          sleep 10
+
+          # Ahora usamos idf_monitor en modo script para enviar ENTER y "1\n" por ejemplo
+          # O simplemente "all\n" según cómo lo tengas configurado
+          python $IDF_PATH/tools/idf_monitor.py \
+            -p socket://localhost:5555 \
+            -b 115200 \
+            --toolchain-prefix xtensa-esp32-elf- \
+            --target esp32 \
+            build/myApp.elf build/bootloader/bootloader.elf 
