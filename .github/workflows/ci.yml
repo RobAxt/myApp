@@ -57,7 +57,22 @@ jobs:
             -no-reboot \
             -machine esp32 \
             -drive file=flash_image.bin,if=mtd,format=raw \
-            -serial file:output.log || { echo "QEMU terminó por timeout o error"; }
+            -serial file:output.log &
+          QEMU_PID=$!
+
+          # Espera a que aparezca "OK" en el log, chequeando cada segundo
+          for i in $(seq 1 ${IDF_TIMEOUT}); do
+            if grep -q "OK" output.log; then
+              echo "Tests finalizados, matando QEMU..."
+              kill $QEMU_PID
+              break
+            fi
+            sleep 1
+          done
+
+          # Espera que QEMU termine
+          wait $QEMU_PID
+
           echo "========== QEMU / Unity log =========="
           cat output.log
           if grep -q "FAIL" output.log; then
