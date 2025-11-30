@@ -51,7 +51,7 @@ jobs:
           set -e
           . "$IDF_PATH/export.sh"
           cd build
-          esptool --chip esp32 merge_bin --fill-flash-size 4MB -o flash_image.bin @flash_args || { echo "Error generando imagen de flash"; exit 1; }
+          esptool.py --chip esp32 merge-bin --pad-to-size 4MB -o flash_image.bin @flash_args || { echo "Error generando imagen de flash"; exit 1; }
           timeout ${IDF_TIMEOUT}s qemu-system-xtensa \
             -nographic \
             -no-reboot \
@@ -70,8 +70,13 @@ jobs:
             sleep 1
           done
 
-          # Espera que QEMU termine
-          wait $QEMU_PID
+          # Espera que QEMU termine, ignorando exit code 143 (SIGTERM)
+          wait $QEMU_PID || EXIT_CODE=$?
+          if [ "${EXIT_CODE}" = "143" ]; then
+            echo "QEMU terminado por kill (SIGTERM), esto es esperado."
+          elif [ -n "${EXIT_CODE}" ] && [ "${EXIT_CODE}" != "0" ]; then
+            exit ${EXIT_CODE}
+          fi
 
           echo "========== QEMU / Unity log =========="
           cat output.log
