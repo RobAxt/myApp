@@ -17,35 +17,40 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Show ESP-IDF version
+        shell: bash
         run: |
           echo "IDF_PATH = $IDF_PATH"
-          idf.py --version || true
+          . "$IDF_PATH/export.sh"
+          idf.py --version
 
       - name: Configure project (cmake)
+        shell: bash
         run: |
+          . "$IDF_PATH/export.sh"
           idf.py reconfigure
 
       - name: Build firmware
+        shell: bash
         run: |
+          . "$IDF_PATH/export.sh"
           idf.py build
 
       - name: Run Unity tests in QEMU
+        shell: bash
         run: |
-          # Lanzar QEMU + monitor en modo no interactivo.
-          # Usamos 'timeout' para que no quede colgado.
           set -e
+          . "$IDF_PATH/export.sh"
 
-          # Generar imagen de QEMU y lanzarlo como hace el comando idf.py qemu
+          # Lanzar QEMU sin monitor interactivo
           idf.py qemu --no-monitor &
 
-          # Darle unos segundos para bootear
+          # Darle tiempo a que arranque
           sleep 10
 
-          # Ahora usamos idf_monitor en modo script para enviar ENTER y "1\n" por ejemplo
-          # O simplemente "all\n" según cómo lo tengas configurado
-          python $IDF_PATH/tools/idf_monitor.py \
+          # Monitor en modo script (acá luego podés mandar ENTER/all si querés)
+          python "$IDF_PATH/tools/idf_monitor.py" \
             -p socket://localhost:5555 \
             -b 115200 \
             --toolchain-prefix xtensa-esp32-elf- \
             --target esp32 \
-            build/myApp.elf build/bootloader/bootloader.elf 
+            build/myApp.elf build/bootloader/bootloader.elf
