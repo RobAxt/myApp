@@ -10,7 +10,6 @@ void app_main(void)
     unity_run_test_by_name("myComponentFunction Should Increment Input");
     UNITY_END();
 
-    
     UNITY_BEGIN();
     unity_run_tests_by_tag("[myComponent]", false);
     UNITY_END();
