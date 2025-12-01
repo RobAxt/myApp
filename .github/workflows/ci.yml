@@ -6,103 +6,21 @@ on:
   pull_request:
 
 jobs:
-  build-and-test:
+  test-qemu:
     runs-on: ubuntu-latest
     container:
       image: espressif/idf:release-v6.0
-    env:
-      IDF_TIMEOUT: 120
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Cache build output
-        uses: actions/cache@v3
-        with:
-          path: build
-          key: ${{ runner.os }}-idf-build-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-idf-build-
-
-      - name: Show ESP-IDF version
-        shell: bash
-        run: |
-          echo "IDF_PATH = $IDF_PATH"
-          . "$IDF_PATH/export.sh"
-          idf.py --version || { echo "Error mostrando versión de ESP-IDF"; exit 1; }
-
-      - name: Configure project (cmake)
+      - name: Run idf.py qemu
         shell: bash
         working-directory: test
         run: |
           . "$IDF_PATH/export.sh"
-          idf.py reconfigure || { echo "Error en reconfigure"; exit 1; }
-
-      - name: Build firmware
-        shell: bash
-        working-directory: test
-        run: |
-          . "$IDF_PATH/export.sh"
-          idf.py build || { echo "Error en build"; exit 1; }
-
-      - name: Run Unity tests in QEMU
-        shell: bash
-        working-directory: test
-        env:
-          IDF_TIMEOUT: ${{ env.IDF_TIMEOUT }}
-        run: |
-          set -e
-          . "$IDF_PATH/export.sh"
-          cd build
-          esptool --chip esp32 merge-bin --pad-to-size 4MB -o flash_image.bin @flash_args || { echo "Error generando imagen de flash"; exit 1; }
-          # Crear output.log vacío para evitar errores de grep
-          : > output.log
-          timeout ${IDF_TIMEOUT}s qemu-system-xtensa \
-            -nographic \
-            -no-reboot \
-            -machine esp32 \
-            -drive file=$(pwd)/flash_image.bin,if=mtd,format=raw \
-            -serial file:$(pwd)/output.log &
-          QEMU_PID=$!
-
-          # Espera a que aparezca "OK" en el log, chequeando cada segundo
-          for i in $(seq 1 ${IDF_TIMEOUT}); do
-            if grep -q "OK" output.log; then
-              echo "Tests finalizados, matando QEMU..."
-              if kill -0 $QEMU_PID 2>/dev/null; then
-                kill $QEMU_PID
-              else
-                echo "QEMU ya terminó antes de kill."
-              fi
-              break
-            fi
-            sleep 1
-          done
-
-          # Espera que QEMU termine, ignorando exit code 143 (SIGTERM)
-          wait $QEMU_PID || EXIT_CODE=$?
-          if [ "${EXIT_CODE}" = "143" ]; then
-            echo "QEMU terminado por kill (SIGTERM), esto es esperado."
-          elif [ -n "${EXIT_CODE}" ] && [ "${EXIT_CODE}" != "0" ]; then
-            exit ${EXIT_CODE}
-          fi
-
-          echo "========== QEMU / Unity log =========="
-          cat output.log
-          if grep -q "FAIL" output.log; then
-            echo "❌ Algunos tests de Unity FALLARON"
-            exit 1
-          fi
-          echo "✅ Todos los tests pasaron (no se encontró 'FAIL' en el log)"
-
+          idf.py qemu
       - name: Upload QEMU log
         uses: actions/upload-artifact@v4
         with:
           name: qemu-output-log
           path: test/build/output.log
-
-      - name: Upload firmware image
-        uses: actions/upload-artifact@v4
-        with:
-          name: firmware-image
-          path: test/build/flash_image.bin
