@@ -17,7 +17,7 @@ jobs:
         shell: bash
         working-directory: test
         env:
-          IDF_TIMEOUT: 120
+          IDF_TIMEOUT: 60
         run: |
           set -e
           . "$IDF_PATH/export.sh"
@@ -25,9 +25,9 @@ jobs:
             2>&1 | tee -a output.log &
           QEMU_PID=$!
 
-          # Espera a que aparezca "OK" en el log, chequeando cada segundo
+          # Espera a que aparezca "Returned from app_main" en el log, chequeando cada segundo
           for i in $(seq 1 ${IDF_TIMEOUT}); do
-            if grep -q "OK" output.log; then
+            if grep -q "Returned from app_main" output.log; then
               echo "Tests finalizados, matando QEMU..."
               if kill -0 $QEMU_PID 2>/dev/null; then
                 kill $QEMU_PID
