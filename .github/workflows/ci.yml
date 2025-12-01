@@ -33,18 +33,21 @@ jobs:
 
       - name: Configure project (cmake)
         shell: bash
+        working-directory: test
         run: |
           . "$IDF_PATH/export.sh"
           idf.py reconfigure || { echo "Error en reconfigure"; exit 1; }
 
       - name: Build firmware
         shell: bash
+        working-directory: test
         run: |
           . "$IDF_PATH/export.sh"
           idf.py build || { echo "Error en build"; exit 1; }
 
       - name: Run Unity tests in QEMU
         shell: bash
+        working-directory: test
         env:
           IDF_TIMEOUT: ${{ env.IDF_TIMEOUT }}
         run: |
@@ -90,10 +93,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: qemu-output-log
-          path: build/output.log
+          path: test/build/output.log
 
       - name: Upload firmware image
         uses: actions/upload-artifact@v4
         with:
           name: firmware-image
-          path: build/flash_image.bin
+          path: test/build/flash_image.bin
