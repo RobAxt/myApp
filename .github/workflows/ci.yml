@@ -21,13 +21,15 @@ jobs:
         run: |
           set -e
           . "$IDF_PATH/export.sh"
-          timeout ${IDF_TIMEOUT}s idf.py qemu \
-            2>&1 | tee -a output.log &
+          # Lanzar QEMU y guardar el PID real
+          (idf.py qemu 2>&1 | tee output.log) &
           QEMU_PID=$!
 
           # Espera a que aparezca "Returned from app_main" en el log, chequeando cada segundo
+          FOUND=0
           for i in $(seq 1 ${IDF_TIMEOUT}); do
             if grep -q "Returned from app_main" output.log; then
+              FOUND=1
               echo "Tests finalizados, matando QEMU..."
               if kill -0 $QEMU_PID 2>/dev/null; then
                 kill $QEMU_PID
@@ -38,6 +40,14 @@ jobs:
             fi
             sleep 1
           done
+
+          if [ $FOUND -eq 0 ]; then
+            echo "No se encontró 'Returned from app_main' en el log tras ${IDF_TIMEOUT} segundos."
+            # Opcional: matar QEMU si sigue vivo
+            if kill -0 $QEMU_PID 2>/dev/null; then
+              kill $QEMU_PID
+            fi
+          fi
 
           # Espera que QEMU termine, ignorando exit code 143 (SIGTERM)
           wait $QEMU_PID || EXIT_CODE=$?
