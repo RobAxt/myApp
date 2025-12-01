@@ -13,12 +13,47 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Run idf.py qemu
+      - name: Run Unity tests in QEMU (custom script)
         shell: bash
         working-directory: test
+        env:
+          IDF_TIMEOUT: 120
         run: |
+          set -e
           . "$IDF_PATH/export.sh"
-          idf.py qemu
+          timeout ${IDF_TIMEOUT}s idf.py qemu \
+            2>&1 | tee -a output.log &
+          QEMU_PID=$!
+
+          # Espera a que aparezca "OK" en el log, chequeando cada segundo
+          for i in $(seq 1 ${IDF_TIMEOUT}); do
+            if grep -q "OK" output.log; then
+              echo "Tests finalizados, matando QEMU..."
+              if kill -0 $QEMU_PID 2>/dev/null; then
+                kill $QEMU_PID
+              else
+                echo "QEMU ya terminó antes de kill."
+              fi
+              break
+            fi
+            sleep 1
+          done
+
+          # Espera que QEMU termine, ignorando exit code 143 (SIGTERM)
+          wait $QEMU_PID || EXIT_CODE=$?
+          if [ "${EXIT_CODE}" = "143" ]; then
+            echo "QEMU terminado por kill (SIGTERM), esto es esperado."
+          elif [ -n "${EXIT_CODE}" ] && [ "${EXIT_CODE}" != "0" ]; then
+            exit ${EXIT_CODE}
+          fi
+
+          echo "========== QEMU / Unity log =========="
+          cat output.log
+          if grep -q "FAIL" output.log; then
+            echo "❌ Algunos tests de Unity FALLARON"
+            exit 1
+          fi
+          echo "✅ Todos los tests pasaron (no se encontró 'FAIL' en el log)"
       - name: Upload QEMU log
         uses: actions/upload-artifact@v4
         with:

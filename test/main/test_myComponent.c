@@ -17,5 +17,4 @@ void app_main(void)
 
     //unity_run_menu();
 
-    exit(0); // Esto termina el proceso en QEMU
 }
