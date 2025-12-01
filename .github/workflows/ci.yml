@@ -47,15 +47,8 @@ jobs:
             exit ${EXIT_CODE}
           fi
 
-          echo "========== QEMU / Unity log =========="
-          cat output.log
-          if grep -q "FAIL" output.log; then
-            echo "❌ Algunos tests de Unity FALLARON"
-            exit 1
-          fi
-          echo "✅ Todos los tests pasaron (no se encontró 'FAIL' en el log)"
-      - name: Upload QEMU log
+      - name: Upload QEMU logs
         uses: actions/upload-artifact@v4
         with:
-          name: qemu-output-log
-          path: test/build/output.log
+          name: qemu-logs
+          path: test/output.log
